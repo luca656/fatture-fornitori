@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fatture Fornitori</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <h1>
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+          <polyline points="10 9 9 9 8 9"/>
+        </svg>
+        Fatture Fornitori
+      </h1>
+      <nav>
+        <button class="nav-btn active" data-tab="comparison">Confronto Prezzi</button>
+        <button class="nav-btn" data-tab="invoices">Fatture</button>
+        <button class="nav-btn" data-tab="suppliers">Fornitori</button>
+        <button class="nav-btn" data-tab="upload">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          Carica Fattura
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <!-- COMPARISON TAB -->
+    <section id="tab-comparison" class="tab-content active">
+      <div class="section-header">
+        <h2>Confronto Prezzi per Prodotto</h2>
+        <div class="filters">
+          <select id="category-filter">
+            <option value="">Tutte le categorie</option>
+          </select>
+          <input type="text" id="product-search" placeholder="Cerca prodotto..." />
+        </div>
+      </div>
+      <div id="comparison-table-wrapper">
+        <div class="loading" id="comparison-loading">
+          <div class="spinner"></div>
+          <span>Caricamento dati...</span>
+        </div>
+        <div id="comparison-content"></div>
+      </div>
+    </section>
+
+    <!-- INVOICES TAB -->
+    <section id="tab-invoices" class="tab-content">
+      <div class="section-header">
+        <h2>Fatture Caricate</h2>
+      </div>
+      <div id="invoices-loading" class="loading">
+        <div class="spinner"></div><span>Caricamento...</span>
+      </div>
+      <div id="invoices-list"></div>
+    </section>
+
+    <!-- SUPPLIERS TAB -->
+    <section id="tab-suppliers" class="tab-content">
+      <div class="section-header">
+        <h2>Fornitori</h2>
+      </div>
+      <div id="suppliers-loading" class="loading">
+        <div class="spinner"></div><span>Caricamento...</span>
+      </div>
+      <div id="suppliers-list"></div>
+    </section>
+
+    <!-- UPLOAD TAB -->
+    <section id="tab-upload" class="tab-content">
+      <div class="upload-container">
+        <h2>Carica una Fattura</h2>
+        <p class="upload-subtitle">
+          L'AI analizzerà la fattura, estrarrà prodotti e prezzi e li aggiungerà al database di confronto.
+        </p>
+
+        <div
+          class="drop-zone"
+          id="drop-zone"
+          role="button"
+          tabindex="0"
+          aria-label="Trascina qui una fattura o clicca per selezionarla"
+        >
+          <input type="file" id="file-input" accept=".pdf,.jpg,.jpeg,.png,.webp" hidden />
+          <div class="drop-zone-icon">
+            <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+          </div>
+          <p class="drop-zone-text">Trascina qui o <span class="link">clicca per selezionare</span></p>
+          <p class="drop-zone-hint">PDF, JPG, PNG, WEBP</p>
+          <div id="selected-file" class="selected-file hidden"></div>
+        </div>
+
+        <button id="upload-btn" class="btn btn-primary btn-lg" disabled>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          Analizza con AI
+        </button>
+
+        <div id="upload-status" class="upload-status hidden"></div>
+        <div id="upload-result" class="upload-result hidden"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- MERGE MODAL -->
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modal-title">Unisci Prodotti</h3>
+        <button class="modal-close" id="modal-close">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="modal-cancel">Annulla</button>
+        <button class="btn btn-primary" id="modal-confirm">Conferma</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
