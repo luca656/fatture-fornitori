@@ -10,12 +10,15 @@ connessione internet: non serve alcun server) con:
 
 - la classifica dei migliori ETF a trend **rialzista** "pulito"
 - la classifica dei migliori ETF a trend **ribassista** "pulito"
-- l'elenco completo di tutti gli ETF monitorati, con i relativi indicatori
-- per i primi 5 di ciascuna classifica, una scheda con **3 grafici a
-  scheda/tab** selezionabili con un click:
+- l'elenco completo di tutti gli ETF monitorati, con i relativi indicatori,
+  inclusa la **variazione percentuale da inizio anno** (YTD)
+- per i primi 5 di ciascuna classifica, una scheda con **4 grafici a
+  scheda/tab** selezionabili con un click, raggiungibile anche cliccando
+  direttamente sul ticker nella tabella:
   - andamento a **90 giorni** con la retta di tendenza
   - **1 giorno** (intraday) con l'indicatore **MACD**
   - **7 giorni** con l'indicatore **MACD**
+  - **12 mesi** con l'indicatore **MACD**
 
 ## Come funziona il "punteggio di pulizia"
 
@@ -52,15 +55,28 @@ Le due soglie sono modificabili in `config/settings.ini`
 Tutte le soglie sono modificabili nel file `config/settings.ini`, senza
 bisogno di toccare il codice.
 
-## I grafici a 1 e 7 giorni con MACD
+## La variazione da inizio anno (YTD)
+
+La colonna **Var. da inizio anno** mostra quanto è salito o sceso il prezzo
+dal primo giorno di borsa dell'anno a oggi (in inglese: Year To Date). È
+calcolata con una richiesta separata da quella usata per il punteggio di
+pulizia, apposta: il punteggio deve restare basato su una finestra breve e
+recente (~90 giorni), mentre lo YTD copre l'intero anno in corso. Se il dato
+non è disponibile per un ETF, la cella mostra "n/d" invece di un numero.
+
+## I grafici a 1 giorno, 7 giorni e 12 mesi con MACD
 
 Per non moltiplicare inutilmente le richieste a Yahoo Finance, i grafici
-intraday (1 giorno) e a 7 giorni, entrambi con l'indicatore **MACD**
+intraday (1 giorno), a 7 giorni e a 12 mesi, tutti con l'indicatore **MACD**
 (Moving Average Convergence Divergence, parametri classici 12/26/9), vengono
 generati solo per i primi 5 ETF di ciascuna classifica (rialzista e
-ribassista). Nel report, ogni scheda ETF ha tre pulsanti — **90 giorni**,
-**1 giorno + MACD**, **7 giorni + MACD** — che permettono di passare da un
-grafico all'altro con un click, senza ricaricare la pagina.
+ribassista). Nel report, ogni scheda ETF ha quattro pulsanti — **90 giorni**,
+**1 giorno + MACD**, **7 giorni + MACD**, **12 mesi + MACD** — che permettono
+di passare da un grafico all'altro con un click, senza ricaricare la pagina.
+
+Nelle tre tabelle, il ticker di un ETF che ha una scheda-grafico in pagina è
+cliccabile: porta direttamente alla scheda corrispondente, più in basso nella
+stessa pagina.
 
 Se per un ETF Yahoo Finance non fornisce dati infragiornalieri sufficienti
 (capita fuori dagli orari di mercato o per ETF poco scambiati), la scheda
@@ -267,3 +283,18 @@ schtasks /Delete /TN "ETF Quotazioni Downloader" /F
 - **Sul NAS, i file generati non sono modificabili da File Station**:
   correggi `PUID` e `PGID` in `docker-compose.yml` con i valori del tuo
   utente (in SSH: `id iltuonome`), poi riavvia il container.
+- **Sul NAS, dopo aver aggiornato `main.py` il report non cambia**: il file
+  viene copiato dentro l'immagine Docker al momento della compilazione, quindi
+  né un riavvio né a volte una nuova "Costruzione" bastano — Container Manager
+  può riutilizzare l'immagine già compilata senza accorgersi che i file sono
+  cambiati. La procedura sicura è: **Container** → elimina il container fermo
+  → **Immagine** → elimina l'immagine `etf-quotazioni-downloader-...` →
+  **Progetto** → **Azione** → **Costruzione**. Se nella finestra di
+  compilazione non vedi scorrere le righe "Step 1/14, 2/14...", l'immagine non
+  è stata davvero ricostruita.
+- **Sul NAS, l'errore "unable to prepare context / Dockerfile" alla
+  compilazione**: il progetto punta a una cartella che non contiene
+  direttamente i file. Capita quando l'estrazione dello zip su Windows crea
+  una cartella dentro l'altra: controlla in File Station che `Dockerfile`,
+  `main.py` e `docker-compose.yml` siano al primo livello della cartella del
+  progetto, non in una sottocartella.

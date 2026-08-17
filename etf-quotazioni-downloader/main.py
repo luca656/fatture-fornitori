@@ -174,6 +174,31 @@ def scarica_storico(ticker, giorni, tentativi_massimi, pausa):
     return None
 
 
+def scarica_variazione_ytd(ticker, tentativi_massimi, pausa):
+    """Scarica lo storico da inizio anno e restituisce la variazione percentuale
+    da inizio anno (YTD, Year To Date), oppure None se non disponibile.
+
+    E' una richiesta separata dallo storico principale: usa il periodo "ytd"
+    nativo di Yahoo Finance, che copre da gennaio a oggi indipendentemente dal
+    numero di giorni impostato per l'analisi di 'pulizia' del trend (che deve
+    restare una finestra breve e recente, non l'intero anno).
+    """
+    for tentativo in range(1, tentativi_massimi + 1):
+        try:
+            dati = yf.Ticker(ticker).history(period="ytd", interval="1d", auto_adjust=True)
+            chiusura = dati["Close"].dropna() if dati is not None else None
+            if chiusura is None or len(chiusura) < 2:
+                raise ValueError("storico da inizio anno insufficiente")
+            return float(chiusura.iloc[-1] / chiusura.iloc[0] - 1) * 100
+        except Exception as exc:
+            log.warning(
+                "Tentativo %d/%d (YTD) fallito per %s: %s",
+                tentativo, tentativi_massimi, ticker, exc,
+            )
+            time.sleep(pausa)
+    return None
+
+
 def calcola_metriche(storico, impostazioni):
     """Calcola il punteggio di 'pulizia' del grafico giornaliero.
 
@@ -419,18 +444,36 @@ def valutazione_semaforo(punteggio, impostazioni):
     return COLOR_CRITICAL, "Rumoroso"
 
 
-def riga_tabella(riga, impostazioni):
+def id_scheda(ticker):
+    """Identificativo HTML sicuro per la scheda-grafico di un ticker (senza punti)."""
+    return f"scheda-{ticker.replace('.', '_')}"
+
+
+def riga_tabella(riga, impostazioni, tickers_con_grafico):
     freccia = "▲" if riga["trend"] == "Rialzista" else "▼"
     colore_trend = COLOR_GOOD if riga["trend"] == "Rialzista" else COLOR_CRITICAL
     colore_punt = colore_punteggio(riga["punteggio"])
     colore_semaforo, etichetta_semaforo = valutazione_semaforo(riga["punteggio"], impostazioni)
+
+    if riga["ticker"] in tickers_con_grafico:
+        cella_ticker = f'<a class="link-grafico" href="#{id_scheda(riga["ticker"])}" title="Vai al grafico">{riga["ticker"]}</a>'
+    else:
+        cella_ticker = riga["ticker"]
+
+    if riga["variazione_ytd"] is None:
+        cella_ytd = '<span class="dato-assente">n/d</span>'
+    else:
+        colore_ytd = COLOR_GOOD if riga["variazione_ytd"] >= 0 else COLOR_CRITICAL
+        cella_ytd = f'<span style="color:{colore_ytd};">{riga["variazione_ytd"]:+.2f}%</span>'
+
     return f"""
     <tr>
-      <td class="mono">{riga['ticker']}</td>
+      <td class="mono">{cella_ticker}</td>
       <td>{riga['nome']}</td>
       <td>{riga['categoria']}</td>
       <td class="num">{riga['ultimo_prezzo']:.2f}</td>
       <td class="num" style="color:{colore_trend};">{riga['variazione_ultimo_giorno']:+.2f}%</td>
+      <td class="num">{cella_ytd}</td>
       <td style="color:{colore_trend};">{freccia} {riga['trend']}</td>
       <td class="num">{riga['r2']:.2f}</td>
       <td class="num">{riga['volatilita']*100:.2f}%</td>
@@ -445,6 +488,7 @@ def intestazione_tabella():
     <tr>
       <th>Ticker</th><th>Nome</th><th>Categoria</th>
       <th class="num">Ultimo prezzo</th><th class="num">Var. ultimo giorno</th>
+      <th class="num">Var. da inizio anno</th>
       <th>Trend</th><th class="num">R²</th><th class="num">Volatilità</th>
       <th class="num">Salto max</th><th class="num">Punteggio pulizia</th><th>Valutazione</th>
     </tr>"""
@@ -479,10 +523,10 @@ def blocco_immagine_tab(tab_id, dati_base64, visibile, testo_alternativo):
             f'</div>')
 
 
-def costruisci_scheda_etf(riga, grafico_90, grafico_1g, grafico_7g):
+def costruisci_scheda_etf(riga, grafico_90, grafico_1g, grafico_7g, grafico_12m):
     colore_punt = colore_punteggio(riga["punteggio"])
     return f"""
-    <div class="scheda-etf">
+    <div class="scheda-etf" id="{id_scheda(riga['ticker'])}">
       <div class="scheda-intestazione">
         <span class="scheda-ticker">{riga['ticker']}</span>
         <span class="scheda-nome">{riga['nome']}</span>
@@ -492,27 +536,34 @@ def costruisci_scheda_etf(riga, grafico_90, grafico_1g, grafico_7g):
         <button type="button" class="tab-btn attivo" onclick="mostraTab(this, 'g90')">90 giorni</button>
         <button type="button" class="tab-btn" onclick="mostraTab(this, 'g1')">1 giorno + MACD</button>
         <button type="button" class="tab-btn" onclick="mostraTab(this, 'g7')">7 giorni + MACD</button>
+        <button type="button" class="tab-btn" onclick="mostraTab(this, 'g12m')">12 mesi + MACD</button>
       </div>
       <div class="scheda-tab-contenuto">
         {blocco_immagine_tab('g90', grafico_90, True, riga['ticker'])}
         {blocco_immagine_tab('g1', grafico_1g, False, riga['ticker'])}
         {blocco_immagine_tab('g7', grafico_7g, False, riga['ticker'])}
+        {blocco_immagine_tab('g12m', grafico_12m, False, riga['ticker'])}
       </div>
     </div>"""
 
 
-def costruisci_report(risultati, impostazioni, grafici_90, grafici_1g, grafici_7g):
+def costruisci_report(risultati, impostazioni, grafici_90, grafici_1g, grafici_7g, grafici_12m):
     rialzisti, ribassisti = seleziona_top(risultati, impostazioni)
     tutti_ordinati = sorted(risultati, key=lambda r: r["punteggio"], reverse=True)
 
+    # ETF che hanno effettivamente una scheda-grafico in pagina: solo per questi
+    # il ticker in tabella diventa un link che porta al grafico corrispondente.
+    tickers_con_grafico = {r["ticker"] for r in rialzisti[:NUM_GRAFICI_DETTAGLIO]} | \
+        {r["ticker"] for r in ribassisti[:NUM_GRAFICI_DETTAGLIO]}
+
     sezioni_grafici_rialzisti = "".join(
         costruisci_scheda_etf(r, grafici_90.get(r["ticker"]), grafici_1g.get(r["ticker"]),
-                               grafici_7g.get(r["ticker"]))
+                               grafici_7g.get(r["ticker"]), grafici_12m.get(r["ticker"]))
         for r in rialzisti[:NUM_GRAFICI_DETTAGLIO]
     )
     sezioni_grafici_ribassisti = "".join(
         costruisci_scheda_etf(r, grafici_90.get(r["ticker"]), grafici_1g.get(r["ticker"]),
-                               grafici_7g.get(r["ticker"]))
+                               grafici_7g.get(r["ticker"]), grafici_12m.get(r["ticker"]))
         for r in ribassisti[:NUM_GRAFICI_DETTAGLIO]
     )
 
@@ -522,6 +573,7 @@ def costruisci_report(risultati, impostazioni, grafici_90, grafici_1g, grafici_7
 <meta charset="utf-8">
 <title>Report ETF — {TODAY}</title>
 <style>
+  html {{ scroll-behavior: smooth; }}
   body {{
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
     background: {COLOR_PAGE}; color: {COLOR_INK_PRIMARY};
@@ -542,6 +594,11 @@ def costruisci_report(risultati, impostazioni, grafici_90, grafici_1g, grafici_7
   td {{ padding: 7px 10px; border-bottom: 1px solid {COLOR_GRID}; }}
   td.num, th.num {{ text-align: right; font-variant-numeric: tabular-nums; }}
   td.mono {{ font-family: ui-monospace, Consolas, monospace; }}
+  a.link-grafico {{
+    color: {COLOR_SERIES_PRICE}; text-decoration: none; border-bottom: 1px dashed {COLOR_SERIES_PRICE};
+  }}
+  a.link-grafico:hover {{ text-decoration: none; border-bottom-style: solid; }}
+  .dato-assente {{ color: {COLOR_INK_MUTED}; }}
   td.punteggio {{ font-weight: 700; color: {COLOR_INK_PRIMARY}; border-radius: 4px; }}
   td.valutazione {{ font-weight: 600; font-size: 12px; white-space: nowrap; }}
   .pallino {{
@@ -588,21 +645,21 @@ def costruisci_report(risultati, impostazioni, grafici_90, grafici_1g, grafici_7
 
   <h2>▲ Top {len(rialzisti)} ETF con trend rialzista "pulito"</h2>
   <p class="nota">Ordinati per punteggio di pulizia (trend lineare, bassa volatilità, nessuno scatto anomalo).
-  Per i primi {NUM_GRAFICI_DETTAGLIO}, clicca sulle schede qui sotto per vedere anche il grafico a 1 e 7 giorni con l'indicatore MACD.</p>
-  <table>{intestazione_tabella()}{''.join(riga_tabella(r, impostazioni) for r in rialzisti)}</table>
+  Per i primi {NUM_GRAFICI_DETTAGLIO}, clicca sulle schede qui sotto per vedere anche i grafici a 1 giorno, 7 giorni e 12 mesi con l'indicatore MACD.</p>
+  <table>{intestazione_tabella()}{''.join(riga_tabella(r, impostazioni, tickers_con_grafico) for r in rialzisti)}</table>
   <div class="schede-etf">{sezioni_grafici_rialzisti}</div>
 
   <h2>▼ Top {len(ribassisti)} ETF con trend ribassista "pulito"</h2>
   <p class="nota">Ordinati per punteggio di pulizia (trend lineare, bassa volatilità, nessuno scatto anomalo).
-  Per i primi {NUM_GRAFICI_DETTAGLIO}, clicca sulle schede qui sotto per vedere anche il grafico a 1 e 7 giorni con l'indicatore MACD.</p>
-  <table>{intestazione_tabella()}{''.join(riga_tabella(r, impostazioni) for r in ribassisti)}</table>
+  Per i primi {NUM_GRAFICI_DETTAGLIO}, clicca sulle schede qui sotto per vedere anche i grafici a 1 giorno, 7 giorni e 12 mesi con l'indicatore MACD.</p>
+  <table>{intestazione_tabella()}{''.join(riga_tabella(r, impostazioni, tickers_con_grafico) for r in ribassisti)}</table>
   <div class="schede-etf">{sezioni_grafici_ribassisti}</div>
 
   <h2>Elenco completo</h2>
   <p class="nota">Tutti gli ETF monitorati, ordinati per punteggio di pulizia decrescente.
   Un ETF entra nelle classifiche sopra solo se ha R² ≥ {impostazioni['r2_minimo']:.2f}
   e punteggio di pulizia ≥ {impostazioni['punteggio_minimo']*100:.0f}.</p>
-  <table>{intestazione_tabella()}{''.join(riga_tabella(r, impostazioni) for r in tutti_ordinati)}</table>
+  <table>{intestazione_tabella()}{''.join(riga_tabella(r, impostazioni, tickers_con_grafico) for r in tutti_ordinati)}</table>
 
   <footer>
     Come leggere i dati: <b>R²</b> misura quanto il prezzo segue fedelmente una retta
@@ -671,7 +728,16 @@ def main():
             log.warning("Dati insufficienti per %s, ETF saltato.", ticker)
             continue
 
-        risultati.append({"ticker": ticker, "nome": nome, "categoria": categoria, **metriche})
+        variazione_ytd = scarica_variazione_ytd(
+            ticker, impostazioni["tentativi_massimi"], impostazioni["pausa_tra_richieste"],
+        )
+        if variazione_ytd is None:
+            log.warning("Variazione da inizio anno non disponibile per %s.", ticker)
+
+        risultati.append({
+            "ticker": ticker, "nome": nome, "categoria": categoria,
+            "variazione_ytd": variazione_ytd, **metriche,
+        })
 
         try:
             grafici_90[ticker] = genera_grafico_giornaliero_base64(ticker, nome, storico, metriche)
@@ -734,8 +800,41 @@ def main():
 
         time.sleep(impostazioni["pausa_tra_richieste"])
 
+    # Grafico a 12 mesi con MACD: dati giornalieri (non infragiornalieri) su un
+    # anno, cosi' il MACD mostra i segnali di piu' lungo periodo oltre a quelli
+    # ravvicinati dei grafici a 1 e 7 giorni. Anche questo solo per i migliori
+    # ETF individuati.
+    grafici_12m = {}
+    for riga in top_dettaglio:
+        ticker, nome = riga["ticker"], riga["nome"]
+        storico_12m = scarica_storico(
+            ticker, 370, impostazioni["tentativi_massimi"], impostazioni["pausa_tra_richieste"],
+        )
+        if storico_12m is None:
+            log.warning("Dati a 12 mesi non disponibili per %s.", ticker)
+            time.sleep(impostazioni["pausa_tra_richieste"])
+            continue
+        try:
+            chiusura_12m = storico_12m["Close"].dropna()
+            if len(chiusura_12m) < punti_minimi:
+                log.warning(
+                    "Storico a 12 mesi insufficiente per il MACD di %s (%d punti).",
+                    ticker, len(chiusura_12m),
+                )
+            else:
+                macd, segnale, istogramma = calcola_macd(
+                    chiusura_12m, impostazioni["macd_veloce"],
+                    impostazioni["macd_lento"], impostazioni["macd_segnale"],
+                )
+                grafici_12m[ticker] = genera_grafico_macd_base64(
+                    ticker, nome, chiusura_12m, macd, segnale, istogramma, "ultimi 12 mesi",
+                )
+        except Exception as exc:
+            log.warning("Impossibile generare il grafico 12m/MACD per %s: %s", ticker, exc)
+        time.sleep(impostazioni["pausa_tra_richieste"])
+
     # Report HTML del giorno
-    html = costruisci_report(risultati, impostazioni, grafici_90, grafici_1g, grafici_7g)
+    html = costruisci_report(risultati, impostazioni, grafici_90, grafici_1g, grafici_7g, grafici_12m)
     percorso_report = REPORT_DIR / f"report_{TODAY}.html"
     percorso_report.write_text(html, encoding="utf-8")
     log.info("Report salvato in: %s", percorso_report)
