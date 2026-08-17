@@ -78,8 +78,9 @@ COLOR_GRID = "#e1e0d9"
 COLOR_BASELINE = "#c3c2b7"
 COLOR_SERIES_PRICE = "#2a78d6"   # linea prezzo
 COLOR_TREND_LINE = "#898781"     # linea di tendenza tratteggiata
-COLOR_GOOD = "#0ca30c"           # rialzista pulito
-COLOR_CRITICAL = "#d03b3b"       # ribassista pulito
+COLOR_GOOD = "#0ca30c"           # rialzista pulito / semaforo verde
+COLOR_WARNING = "#c98500"        # semaforo giallo (versione leggibile su sfondo chiaro)
+COLOR_CRITICAL = "#d03b3b"       # ribassista pulito / semaforo rosso
 COLOR_MACD_LINEA = "#eb6834"     # linea MACD
 COLOR_MACD_SEGNALE = "#4a3aa7"   # linea di segnale MACD
 # rampa sequenziale blu (chiaro -> scuro) per il punteggio in tabella
@@ -121,6 +122,8 @@ def carica_impostazioni():
         "giorni_minimi": int(analisi.get("giorni_minimi", 40)),
         "r2_minimo": float(analisi.get("r2_minimo", 0.55)),
         "punteggio_minimo": float(analisi.get("punteggio_minimo", 0.10)),
+        "soglia_semaforo_verde": float(analisi.get("soglia_semaforo_verde", 0.50)),
+        "soglia_semaforo_giallo": float(analisi.get("soglia_semaforo_giallo", 0.20)),
         "volatilita_massima": float(analisi.get("volatilita_massima", 0.025)),
         "salto_massimo": float(analisi.get("salto_massimo", 0.07)),
         "top_n": int(analisi.get("top_n", 10)),
@@ -405,10 +408,22 @@ def colore_punteggio(punteggio):
     return SCORE_RAMP[indice]
 
 
-def riga_tabella(riga):
+def valutazione_semaforo(punteggio, impostazioni):
+    """Traduce il punteggio numerico in un giudizio a semaforo, per una lettura
+    immediata senza dover interpretare i numeri: verde/giallo/rosso, sempre
+    accompagnati da un'etichetta testuale (mai il colore da solo)."""
+    if punteggio >= impostazioni["soglia_semaforo_verde"]:
+        return COLOR_GOOD, "Pulito"
+    if punteggio >= impostazioni["soglia_semaforo_giallo"]:
+        return COLOR_WARNING, "Discreto"
+    return COLOR_CRITICAL, "Rumoroso"
+
+
+def riga_tabella(riga, impostazioni):
     freccia = "▲" if riga["trend"] == "Rialzista" else "▼"
     colore_trend = COLOR_GOOD if riga["trend"] == "Rialzista" else COLOR_CRITICAL
     colore_punt = colore_punteggio(riga["punteggio"])
+    colore_semaforo, etichetta_semaforo = valutazione_semaforo(riga["punteggio"], impostazioni)
     return f"""
     <tr>
       <td class="mono">{riga['ticker']}</td>
@@ -421,6 +436,7 @@ def riga_tabella(riga):
       <td class="num">{riga['volatilita']*100:.2f}%</td>
       <td class="num">{riga['salto_max']*100:.2f}%</td>
       <td class="num punteggio" style="background:{colore_punt};">{riga['punteggio']*100:.0f}</td>
+      <td class="valutazione"><span class="pallino" style="background:{colore_semaforo};"></span><span style="color:{colore_semaforo};">{etichetta_semaforo}</span></td>
     </tr>"""
 
 
@@ -430,7 +446,7 @@ def intestazione_tabella():
       <th>Ticker</th><th>Nome</th><th>Categoria</th>
       <th class="num">Ultimo prezzo</th><th class="num">Var. ultimo giorno</th>
       <th>Trend</th><th class="num">R²</th><th class="num">Volatilità</th>
-      <th class="num">Salto max</th><th class="num">Punteggio pulizia</th>
+      <th class="num">Salto max</th><th class="num">Punteggio pulizia</th><th>Valutazione</th>
     </tr>"""
 
 
@@ -527,6 +543,11 @@ def costruisci_report(risultati, impostazioni, grafici_90, grafici_1g, grafici_7
   td.num, th.num {{ text-align: right; font-variant-numeric: tabular-nums; }}
   td.mono {{ font-family: ui-monospace, Consolas, monospace; }}
   td.punteggio {{ font-weight: 700; color: {COLOR_INK_PRIMARY}; border-radius: 4px; }}
+  td.valutazione {{ font-weight: 600; font-size: 12px; white-space: nowrap; }}
+  .pallino {{
+    display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+    margin-right: 6px; vertical-align: middle;
+  }}
   .schede-etf {{ display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; }}
   .scheda-etf {{
     background: {COLOR_SURFACE}; border: 1px solid {COLOR_GRID}; border-radius: 8px;
@@ -568,20 +589,20 @@ def costruisci_report(risultati, impostazioni, grafici_90, grafici_1g, grafici_7
   <h2>▲ Top {len(rialzisti)} ETF con trend rialzista "pulito"</h2>
   <p class="nota">Ordinati per punteggio di pulizia (trend lineare, bassa volatilità, nessuno scatto anomalo).
   Per i primi {NUM_GRAFICI_DETTAGLIO}, clicca sulle schede qui sotto per vedere anche il grafico a 1 e 7 giorni con l'indicatore MACD.</p>
-  <table>{intestazione_tabella()}{''.join(riga_tabella(r) for r in rialzisti)}</table>
+  <table>{intestazione_tabella()}{''.join(riga_tabella(r, impostazioni) for r in rialzisti)}</table>
   <div class="schede-etf">{sezioni_grafici_rialzisti}</div>
 
   <h2>▼ Top {len(ribassisti)} ETF con trend ribassista "pulito"</h2>
   <p class="nota">Ordinati per punteggio di pulizia (trend lineare, bassa volatilità, nessuno scatto anomalo).
   Per i primi {NUM_GRAFICI_DETTAGLIO}, clicca sulle schede qui sotto per vedere anche il grafico a 1 e 7 giorni con l'indicatore MACD.</p>
-  <table>{intestazione_tabella()}{''.join(riga_tabella(r) for r in ribassisti)}</table>
+  <table>{intestazione_tabella()}{''.join(riga_tabella(r, impostazioni) for r in ribassisti)}</table>
   <div class="schede-etf">{sezioni_grafici_ribassisti}</div>
 
   <h2>Elenco completo</h2>
   <p class="nota">Tutti gli ETF monitorati, ordinati per punteggio di pulizia decrescente.
   Un ETF entra nelle classifiche sopra solo se ha R² ≥ {impostazioni['r2_minimo']:.2f}
   e punteggio di pulizia ≥ {impostazioni['punteggio_minimo']*100:.0f}.</p>
-  <table>{intestazione_tabella()}{''.join(riga_tabella(r) for r in tutti_ordinati)}</table>
+  <table>{intestazione_tabella()}{''.join(riga_tabella(r, impostazioni) for r in tutti_ordinati)}</table>
 
   <footer>
     Come leggere i dati: <b>R²</b> misura quanto il prezzo segue fedelmente una retta
@@ -590,7 +611,12 @@ def costruisci_report(risultati, impostazioni, grafici_90, grafici_1g, grafici_7
     un singolo giorno nel periodo osservato; <b>Punteggio pulizia</b> (0-100) combina i tre
     indicatori; <b>MACD</b> (Moving Average Convergence Divergence) è un indicatore di
     momentum calcolato sulle medie mobili esponenziali a 12 e 26 periodi, con linea di
-    segnale a 9 periodi. Questo report è generato automaticamente ed è solo a scopo
+    segnale a 9 periodi. La <b>Valutazione</b> traduce il punteggio in un giudizio
+    immediato:
+    <span class="pallino" style="background:{COLOR_GOOD};"></span>Pulito (punteggio ≥ {impostazioni['soglia_semaforo_verde']*100:.0f}),
+    <span class="pallino" style="background:{COLOR_WARNING};"></span>Discreto (≥ {impostazioni['soglia_semaforo_giallo']*100:.0f}),
+    <span class="pallino" style="background:{COLOR_CRITICAL};"></span>Rumoroso (sotto {impostazioni['soglia_semaforo_giallo']*100:.0f}).
+    Questo report è generato automaticamente ed è solo a scopo
     informativo: non costituisce consulenza finanziaria.
   </footer>
 

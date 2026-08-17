@@ -37,6 +37,18 @@ ETF può avere una direzione ben riconoscibile (R² alto) pur muovendosi a strap
 del 10% al giorno: il trend c'è, ma il grafico è tutt'altro che pulito, ed è
 esattamente il caso che queste classifiche devono escludere.
 
+Ogni tabella ha anche una colonna **Valutazione** a semaforo, per un giudizio
+a colpo d'occhio senza dover interpretare i numeri:
+
+| Pallino | Giudizio | Punteggio |
+|---|---|---|
+| 🟢 | Pulito | ≥ 50 |
+| 🟡 | Discreto | 20-49 |
+| 🔴 | Rumoroso | < 20 |
+
+Le due soglie sono modificabili in `config/settings.ini`
+(`soglia_semaforo_verde` e `soglia_semaforo_giallo`).
+
 Tutte le soglie sono modificabili nel file `config/settings.ini`, senza
 bisogno di toccare il codice.
 
