@@ -185,6 +185,18 @@ esempio:
 | Euronext Parigi | `.PA` | `MEUD.PA` |
 | Borse USA | nessun suffisso | `SPY` |
 
+L'elenco predefinito contiene 51 ETF: azionari (globali, USA, Europa, Giappone,
+emergenti, settoriali), obbligazionari (governativi euro suddivisi per scadenza,
+corporate, high yield, inflazione, Treasury USA, emergenti, globali), oro fisico
+e minerarie aurifere, argento, materie prime, immobiliare e liquidità.
+
+> Un'avvertenza sui fondi monetari: `XEON.MI` è un fondo di liquidità, quindi il
+> suo grafico è una retta quasi perfetta e ottiene un punteggio vicino a 100,
+> occupando stabilmente il primo posto tra i rialzisti. È corretto — è davvero
+> il grafico più "pulito" possibile — ma non rappresenta un'opportunità di
+> investimento: rende semplicemente il tasso di mercato monetario. Se lo trovi
+> di disturbo in cima alla classifica, elimina la sua riga dal file.
+
 Aggiungi o rimuovi righe liberamente e salva il file: alla successiva
 esecuzione lo strumento userà il nuovo elenco.
 

@@ -26,8 +26,22 @@ CRPE.MI,iShares Euro Corporate Bond ESG,Obbligazionario Corporate
 AGGH.MI,iShares Global Aggregate Bond EUR Hedged,Obbligazionario Globale
 XEON.MI,Xtrackers II EUR Overnight Rate Swap,Liquidita
 CSBGE3.MI,iShares eb.rexx Government Germany 1.5-2.5,Obbligazionario Breve Termine
+IBGS.MI,iShares Euro Govt Bond 1-3 anni,Obbligazionario Governativo Breve
+IBGX.MI,iShares Euro Govt Bond 3-5 anni,Obbligazionario Governativo Medio
+IBGM.MI,iShares Euro Govt Bond 7-10 anni,Obbligazionario Governativo Medio
+IBGL.MI,iShares Euro Govt Bond 15-30 anni,Obbligazionario Governativo Lungo
+IBCI.MI,iShares Euro Inflation Linked Govt Bond,Obbligazionario Inflazione
+ITPS.MI,iShares USD TIPS,Obbligazionario Inflazione USA
+IHYG.MI,iShares Euro High Yield Corporate Bond,Obbligazionario High Yield
+LQDE.MI,iShares USD Corporate Bond,Obbligazionario Corporate USA
+IBTM.MI,iShares USD Treasury Bond 7-10 anni,Obbligazionario USA
+TLT,iShares 20+ Year Treasury Bond,Obbligazionario USA Lungo
+IEMB.MI,iShares JP Morgan USD EM Bond,Obbligazionario Emergenti
 SGLD.MI,iShares Physical Gold,Materie Prime Oro
 4GLD.DE,Xetra-Gold,Materie Prime Oro
+XAD1.DE,Xtrackers Physical Gold EUR Hedged,Materie Prime Oro
+GDX,VanEck Gold Miners,Azionario Oro Minerarie
+GDXJ,VanEck Junior Gold Miners,Azionario Oro Minerarie
 PHAG.MI,WisdomTree Physical Silver,Materie Prime Argento
 CRB.MI,WisdomTree Commodity,Materie Prime
 IPRP.MI,iShares European Property Yield,Immobiliare
