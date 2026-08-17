@@ -2,7 +2,7 @@ ticker,nome,categoria
 SWDA.MI,iShares Core MSCI World,Azionario Globale
 VWCE.DE,Vanguard FTSE All-World,Azionario Globale
 XDWD.MI,Xtrackers MSCI World,Azionario Globale
-CSPX.MI,iShares Core S&P 500,Azionario USA
+CSSPX.MI,iShares Core S&P 500,Azionario USA
 VUSA.MI,Vanguard S&P 500,Azionario USA
 SXR8.DE,iShares Core S&P 500 (DE),Azionario USA
 SXRV.DE,iShares NASDAQ 100,Azionario USA Tech
@@ -13,14 +13,14 @@ EXSA.DE,iShares STOXX Europe 600,Azionario Europa
 SXRT.DE,iShares MSCI Japan,Azionario Giappone
 EIMI.MI,iShares Core MSCI EM IMI,Azionario Emergenti
 VFEM.DE,Vanguard FTSE Emerging Markets,Azionario Emergenti
-MCHI.MI,iShares MSCI China A,Azionario Cina
-WSML.MI,iShares MSCI World Small Cap,Azionario Small Cap
+CNYA.L,iShares MSCI China A,Azionario Cina
+IUSN.DE,iShares MSCI World Small Cap,Azionario Small Cap
 VHYL.MI,Vanguard FTSE All-World High Div,Azionario Dividendi
-IUIT.MI,iShares S&P 500 Information Technology,Settoriale Tecnologia
+QDVE.DE,iShares S&P 500 Information Technology,Settoriale Tecnologia
 HEAL.MI,iShares Healthcare Innovation,Settoriale Salute
 WTEC.MI,SPDR MSCI World Technology,Settoriale Tecnologia
-IEGA.MI,iShares Euro Government Bond,Obbligazionario Governativo
-VETY.DE,Vanguard EUR Eurozone Government Bond,Obbligazionario Governativo
+SEGA.MI,iShares Core Euro Government Bond,Obbligazionario Governativo
+VGEA.DE,Vanguard EUR Eurozone Government Bond,Obbligazionario Governativo
 IEAC.MI,iShares Euro Corporate Bond,Obbligazionario Corporate
 CRPE.MI,iShares Euro Corporate Bond ESG,Obbligazionario Corporate
 AGGH.MI,iShares Global Aggregate Bond EUR Hedged,Obbligazionario Globale
@@ -28,7 +28,7 @@ XEON.MI,Xtrackers II EUR Overnight Rate Swap,Liquidita
 CSBGE3.MI,iShares eb.rexx Government Germany 1.5-2.5,Obbligazionario Breve Termine
 SGLD.MI,iShares Physical Gold,Materie Prime Oro
 4GLD.DE,Xetra-Gold,Materie Prime Oro
-PPFB.MI,WisdomTree Physical Silver,Materie Prime Argento
+PHAG.MI,WisdomTree Physical Silver,Materie Prime Argento
 CRB.MI,WisdomTree Commodity,Materie Prime
 IPRP.MI,iShares European Property Yield,Immobiliare
 SPY,SPDR S&P 500 ETF Trust,Azionario USA

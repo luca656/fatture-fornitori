@@ -120,6 +120,7 @@ def carica_impostazioni():
         "giorni_storico": int(analisi.get("giorni_storico", 130)),
         "giorni_minimi": int(analisi.get("giorni_minimi", 40)),
         "r2_minimo": float(analisi.get("r2_minimo", 0.55)),
+        "punteggio_minimo": float(analisi.get("punteggio_minimo", 0.10)),
         "volatilita_massima": float(analisi.get("volatilita_massima", 0.025)),
         "salto_massimo": float(analisi.get("salto_massimo", 0.07)),
         "top_n": int(analisi.get("top_n", 10)),
@@ -128,11 +129,13 @@ def carica_impostazioni():
         "macd_veloce": int(macd.get("veloce", 12)),
         "macd_lento": int(macd.get("lento", 26)),
         "macd_segnale": int(macd.get("segnale", 9)),
+        # Dal piu' fitto al piu' largo: un intervallo fitto produce piu' punti,
+        # che e' cio' che serve quando i dati intraday sono ancora pochi.
         "intervalli_1g": [
-            s.strip() for s in intraday.get("intervalli_1g", "5m,15m,30m").split(",") if s.strip()
+            s.strip() for s in intraday.get("intervalli_1g", "1m,2m,5m").split(",") if s.strip()
         ],
         "intervalli_7g": [
-            s.strip() for s in intraday.get("intervalli_7g", "30m,60m,15m").split(",") if s.strip()
+            s.strip() for s in intraday.get("intervalli_7g", "15m,30m,60m").split(",") if s.strip()
         ],
     }
 
@@ -225,14 +228,21 @@ def salva_storico_csv(ticker, storico):
     storico_da_salvare.to_csv(percorso)
 
 
-def scarica_intraday(ticker, periodo, elenco_intervalli, tentativi_massimi, pausa):
+def scarica_intraday(ticker, periodo, elenco_intervalli, punti_minimi, tentativi_massimi, pausa):
     """Scarica dati infragiornalieri per il periodo indicato (es. '1d', '7d').
 
-    Prova gli intervalli in cascata (es. 5m, poi 15m, poi 30m): non tutti gli
-    ETF/orari sono coperti allo stesso modo su Yahoo Finance, quindi se il
-    primo intervallo non restituisce dati sufficienti si passa al successivo.
+    Prova gli intervalli in cascata e restituisce il primo che fornisce almeno
+    'punti_minimi' rilevazioni: il MACD ha bisogno di un numero minimo di punti
+    per essere calcolabile, quindi un intervallo che restituisce pochi dati non
+    e' utilizzabile e va scartato in favore del successivo.
+
+    Nota: gli intervalli vanno elencati dal piu' fitto al piu' largo (1m, 2m,
+    5m...), perche' a parita' di periodo un intervallo piu' fitto produce piu'
+    punti. E' il caso tipico del grafico a 1 giorno consultato poco dopo
+    l'apertura dei mercati, quando le ore trascorse sono ancora poche.
+
     Restituisce (dati, intervallo_usato) oppure (None, None) se nessun
-    intervallo ha funzionato.
+    intervallo ha fornito dati sufficienti.
     """
     for intervallo in elenco_intervalli:
         for tentativo in range(1, tentativi_massimi + 1):
@@ -240,9 +250,18 @@ def scarica_intraday(ticker, periodo, elenco_intervalli, tentativi_massimi, paus
                 dati = yf.Ticker(ticker).history(
                     period=periodo, interval=intervallo, auto_adjust=True
                 )
-                if dati is not None and not dati.empty and len(dati) >= 10:
+                if dati is None or dati.empty:
+                    raise ValueError("nessun dato restituito")
+                punti = len(dati["Close"].dropna())
+                if punti >= punti_minimi:
                     return dati, intervallo
-                raise ValueError("dati insufficienti")
+                # Dati validi ma troppo pochi: inutile insistere con altri
+                # tentativi sullo stesso intervallo, si passa al successivo.
+                log.info(
+                    "Intraday (%s, %s) per %s: solo %d punti sui %d necessari, provo il prossimo intervallo.",
+                    periodo, intervallo, ticker, punti, punti_minimi,
+                )
+                break
             except Exception as exc:
                 log.warning(
                     "Tentativo %d/%d intraday (%s, %s) fallito per %s: %s",
@@ -298,6 +317,35 @@ def genera_grafico_giornaliero_base64(ticker, nome, storico, metriche):
     return base64.b64encode(buffer.read()).decode("ascii")
 
 
+def etichette_asse_tempo(indice, numero_etichette=6):
+    """Sceglie le posizioni e le diciture da mettere sull'asse orizzontale.
+
+    I grafici intraday sono disegnati su un asse posizionale (0, 1, 2, ...)
+    invece che sulle date vere: cosi' le ore di mercato chiuso — notti e
+    weekend — non lasciano buchi che matplotlib colmerebbe con lunghe rette
+    diagonali, facendo sembrare che il prezzo si muova quando invece la borsa
+    era ferma. E' lo stesso accorgimento usato dalle piattaforme finanziarie.
+    Le date vere restano, come diciture sotto l'asse.
+    """
+    if len(indice) == 0:
+        return [], []
+
+    # Sull'arco di una sola giornata conta l'ora; su piu' giorni conta la data,
+    # e l'ora diventa un dettaglio che affolla l'asse senza aggiungere nulla.
+    giorni = (indice[-1] - indice[0]).total_seconds() / 86400
+    if giorni <= 1:
+        formato = "%H:%M"
+    elif giorni <= 3:
+        formato = "%d/%m %H:%M"
+    else:
+        formato = "%d/%m"
+
+    passo = max(len(indice) // numero_etichette, 1)
+    posizioni = list(range(0, len(indice), passo))
+    diciture = [indice[p].strftime(formato) for p in posizioni]
+    return posizioni, diciture
+
+
 def genera_grafico_macd_base64(ticker, nome, chiusura, macd, segnale, istogramma, sottotitolo):
     """Grafico a due pannelli: prezzo in alto, indicatore MACD in basso."""
     fig, (ax_prezzo, ax_macd) = plt.subplots(
@@ -306,9 +354,11 @@ def genera_grafico_macd_base64(ticker, nome, chiusura, macd, segnale, istogramma
     )
     fig.patch.set_facecolor(COLOR_SURFACE)
 
+    # Asse posizionale: una tacca per rilevazione, senza vuoti temporali.
+    x = np.arange(len(chiusura))
+
     ax_prezzo.set_facecolor(COLOR_SURFACE)
-    ax_prezzo.plot(chiusura.index, chiusura.values, color=COLOR_SERIES_PRICE, linewidth=1.5,
-                    label="Prezzo")
+    ax_prezzo.plot(x, chiusura.values, color=COLOR_SERIES_PRICE, linewidth=1.5, label="Prezzo")
     ax_prezzo.set_title(f"{ticker} — {nome} — {sottotitolo}", fontsize=10,
                          color=COLOR_INK_PRIMARY, loc="left")
     ax_prezzo.grid(True, color=COLOR_GRID, linewidth=0.6)
@@ -318,22 +368,13 @@ def genera_grafico_macd_base64(ticker, nome, chiusura, macd, segnale, istogramma
     ax_prezzo.yaxis.set_major_formatter(mticker.FormatStrFormatter("%.2f"))
     ax_prezzo.legend(loc="upper left", fontsize=7, frameon=False, labelcolor=COLOR_INK_SECONDARY)
 
-    if len(istogramma) > 1:
-        passo_giorni = (
-            (istogramma.index[-1] - istogramma.index[0]).total_seconds()
-            / (len(istogramma) - 1) / 86400
-        )
-    else:
-        passo_giorni = 0.01
-    larghezza_barre = max(passo_giorni * 0.8, 1e-4)
     colori_istogramma = [COLOR_GOOD if v >= 0 else COLOR_CRITICAL for v in istogramma.values]
 
     ax_macd.set_facecolor(COLOR_SURFACE)
-    ax_macd.bar(istogramma.index, istogramma.values, color=colori_istogramma,
-                width=larghezza_barre, alpha=0.55, label="Istogramma")
-    ax_macd.plot(macd.index, macd.values, color=COLOR_MACD_LINEA, linewidth=1.3, label="MACD")
-    ax_macd.plot(segnale.index, segnale.values, color=COLOR_MACD_SEGNALE, linewidth=1.1,
-                 label="Segnale")
+    ax_macd.bar(x, istogramma.values, color=colori_istogramma,
+                width=0.8, alpha=0.55, label="Istogramma")
+    ax_macd.plot(x, macd.values, color=COLOR_MACD_LINEA, linewidth=1.3, label="MACD")
+    ax_macd.plot(x, segnale.values, color=COLOR_MACD_SEGNALE, linewidth=1.1, label="Segnale")
     ax_macd.axhline(0, color=COLOR_BASELINE, linewidth=0.8)
     ax_macd.grid(True, color=COLOR_GRID, linewidth=0.6)
     ax_macd.spines[["top", "right"]].set_visible(False)
@@ -341,7 +382,10 @@ def genera_grafico_macd_base64(ticker, nome, chiusura, macd, segnale, istogramma
     ax_macd.tick_params(colors=COLOR_INK_MUTED, labelsize=8)
     ax_macd.legend(loc="upper left", fontsize=7, frameon=False, labelcolor=COLOR_INK_SECONDARY, ncol=3)
 
-    fig.autofmt_xdate(rotation=30)
+    posizioni, diciture = etichette_asse_tempo(chiusura.index)
+    ax_macd.set_xticks(posizioni)
+    ax_macd.set_xticklabels(diciture, rotation=30, ha="right")
+
     fig.tight_layout()
 
     buffer = io.BytesIO()
@@ -392,7 +436,11 @@ def intestazione_tabella():
 
 def seleziona_top(risultati, impostazioni):
     """Seleziona gli ETF a trend 'pulito' (R² sopra soglia), separati per direzione."""
-    puliti = [r for r in risultati if r["r2"] >= impostazioni["r2_minimo"]]
+    puliti = [
+        r for r in risultati
+        if r["r2"] >= impostazioni["r2_minimo"]
+        and r["punteggio"] >= impostazioni["punteggio_minimo"]
+    ]
     rialzisti = sorted(
         [r for r in puliti if r["trend"] == "Rialzista"],
         key=lambda r: r["punteggio"], reverse=True,
@@ -531,7 +579,8 @@ def costruisci_report(risultati, impostazioni, grafici_90, grafici_1g, grafici_7
 
   <h2>Elenco completo</h2>
   <p class="nota">Tutti gli ETF monitorati, ordinati per punteggio di pulizia decrescente.
-  Un ETF entra nelle classifiche sopra solo se R² ≥ {impostazioni['r2_minimo']:.2f}.</p>
+  Un ETF entra nelle classifiche sopra solo se ha R² ≥ {impostazioni['r2_minimo']:.2f}
+  e punteggio di pulizia ≥ {impostazioni['punteggio_minimo']*100:.0f}.</p>
   <table>{intestazione_tabella()}{''.join(riga_tabella(r) for r in tutti_ordinati)}</table>
 
   <footer>
@@ -617,56 +666,45 @@ def main():
 
     grafici_1g = {}
     grafici_7g = {}
-    lunghezza_minima_macd = impostazioni["macd_lento"] + impostazioni["macd_segnale"]
+    # Il MACD non e' calcolabile con meno punti di quanti ne servono a far
+    # partire la media lenta piu' la linea di segnale.
+    punti_minimi = impostazioni["macd_lento"] + impostazioni["macd_segnale"]
+
+    def genera_grafico_intraday(ticker, nome, periodo, intervalli, descrizione):
+        """Scarica i dati intraday e restituisce il grafico con MACD, o None."""
+        dati, intervallo = scarica_intraday(
+            ticker, periodo, intervalli, punti_minimi,
+            impostazioni["tentativi_massimi"], impostazioni["pausa_tra_richieste"],
+        )
+        if dati is None:
+            log.warning("Dati intraday %s non disponibili per %s.", periodo, ticker)
+            return None
+        try:
+            chiusura = dati["Close"].dropna()
+            macd, segnale, istogramma = calcola_macd(
+                chiusura, impostazioni["macd_veloce"],
+                impostazioni["macd_lento"], impostazioni["macd_segnale"],
+            )
+            return genera_grafico_macd_base64(
+                ticker, nome, chiusura, macd, segnale, istogramma,
+                f"{descrizione} ({intervallo})",
+            )
+        except Exception as exc:
+            log.warning("Impossibile generare il grafico %s/MACD per %s: %s", periodo, ticker, exc)
+            return None
 
     for riga in top_dettaglio:
         ticker, nome = riga["ticker"], riga["nome"]
 
-        dati_1g, intervallo_1g = scarica_intraday(
-            ticker, "1d", impostazioni["intervalli_1g"],
-            impostazioni["tentativi_massimi"], impostazioni["pausa_tra_richieste"],
-        )
-        if dati_1g is not None:
-            chiusura_1g = dati_1g["Close"].dropna()
-            if len(chiusura_1g) >= lunghezza_minima_macd:
-                try:
-                    macd, segnale, istogramma = calcola_macd(
-                        chiusura_1g, impostazioni["macd_veloce"],
-                        impostazioni["macd_lento"], impostazioni["macd_segnale"],
-                    )
-                    grafici_1g[ticker] = genera_grafico_macd_base64(
-                        ticker, nome, chiusura_1g, macd, segnale, istogramma,
-                        f"intraday 1 giorno ({intervallo_1g})",
-                    )
-                except Exception as exc:
-                    log.warning("Impossibile generare il grafico 1g/MACD per %s: %s", ticker, exc)
-            else:
-                log.warning("Dati 1g insufficienti per il MACD di %s (%d punti).", ticker, len(chiusura_1g))
-        else:
-            log.warning("Dati intraday 1g non disponibili per %s.", ticker)
+        grafico_1g = genera_grafico_intraday(
+            ticker, nome, "1d", impostazioni["intervalli_1g"], "intraday 1 giorno")
+        if grafico_1g:
+            grafici_1g[ticker] = grafico_1g
 
-        dati_7g, intervallo_7g = scarica_intraday(
-            ticker, "7d", impostazioni["intervalli_7g"],
-            impostazioni["tentativi_massimi"], impostazioni["pausa_tra_richieste"],
-        )
-        if dati_7g is not None:
-            chiusura_7g = dati_7g["Close"].dropna()
-            if len(chiusura_7g) >= lunghezza_minima_macd:
-                try:
-                    macd, segnale, istogramma = calcola_macd(
-                        chiusura_7g, impostazioni["macd_veloce"],
-                        impostazioni["macd_lento"], impostazioni["macd_segnale"],
-                    )
-                    grafici_7g[ticker] = genera_grafico_macd_base64(
-                        ticker, nome, chiusura_7g, macd, segnale, istogramma,
-                        f"ultimi 7 giorni ({intervallo_7g})",
-                    )
-                except Exception as exc:
-                    log.warning("Impossibile generare il grafico 7g/MACD per %s: %s", ticker, exc)
-            else:
-                log.warning("Dati 7g insufficienti per il MACD di %s (%d punti).", ticker, len(chiusura_7g))
-        else:
-            log.warning("Dati intraday 7g non disponibili per %s.", ticker)
+        grafico_7g = genera_grafico_intraday(
+            ticker, nome, "7d", impostazioni["intervalli_7g"], "ultimi 7 giorni")
+        if grafico_7g:
+            grafici_7g[ticker] = grafico_7g
 
         time.sleep(impostazioni["pausa_tra_richieste"])
 
@@ -678,6 +716,11 @@ def main():
 
     # Copia sempre disponibile con nome fisso, comoda da tenere aperta/preferita
     (REPORT_DIR / "ultimo_report.html").write_text(html, encoding="utf-8")
+
+    # Copia chiamata index.html: e' il nome che i browser aprono da soli quando
+    # si visita un indirizzo, quindi con la versione su NAS basta digitare
+    # http://indirizzo-del-nas:porta per vedere subito il report.
+    (REPORT_DIR / "index.html").write_text(html, encoding="utf-8")
 
     # Classifica in CSV, utile per analisi ulteriori o storico
     df = pd.DataFrame(risultati).drop(columns=["y_previsto", "x"])
