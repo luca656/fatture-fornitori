@@ -1,0 +1,7 @@
+.venv/
+data/*.csv
+report/*.html
+report/*.csv
+log/log_*.txt
+__pycache__/
+*.pyc

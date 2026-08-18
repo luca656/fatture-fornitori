@@ -1,0 +1,52 @@
+ticker,nome,categoria
+SWDA.MI,iShares Core MSCI World,Azionario Globale
+VWCE.DE,Vanguard FTSE All-World,Azionario Globale
+XDWD.MI,Xtrackers MSCI World,Azionario Globale
+CSSPX.MI,iShares Core S&P 500,Azionario USA
+VUSA.MI,Vanguard S&P 500,Azionario USA
+SXR8.DE,iShares Core S&P 500 (DE),Azionario USA
+SXRV.DE,iShares NASDAQ 100,Azionario USA Tech
+EQQQ.MI,Invesco EQQQ Nasdaq-100,Azionario USA Tech
+IMEU.MI,iShares Core MSCI Europe,Azionario Europa
+MEUD.PA,Amundi MSCI Europe,Azionario Europa
+EXSA.DE,iShares STOXX Europe 600,Azionario Europa
+SXRT.DE,iShares MSCI Japan,Azionario Giappone
+EIMI.MI,iShares Core MSCI EM IMI,Azionario Emergenti
+VFEM.DE,Vanguard FTSE Emerging Markets,Azionario Emergenti
+CNYA.L,iShares MSCI China A,Azionario Cina
+IUSN.DE,iShares MSCI World Small Cap,Azionario Small Cap
+VHYL.MI,Vanguard FTSE All-World High Div,Azionario Dividendi
+QDVE.DE,iShares S&P 500 Information Technology,Settoriale Tecnologia
+HEAL.MI,iShares Healthcare Innovation,Settoriale Salute
+WTEC.MI,SPDR MSCI World Technology,Settoriale Tecnologia
+SEGA.MI,iShares Core Euro Government Bond,Obbligazionario Governativo
+VGEA.DE,Vanguard EUR Eurozone Government Bond,Obbligazionario Governativo
+IEAC.MI,iShares Euro Corporate Bond,Obbligazionario Corporate
+CRPE.MI,iShares Euro Corporate Bond ESG,Obbligazionario Corporate
+AGGH.MI,iShares Global Aggregate Bond EUR Hedged,Obbligazionario Globale
+XEON.MI,Xtrackers II EUR Overnight Rate Swap,Liquidita
+CSBGE3.MI,iShares eb.rexx Government Germany 1.5-2.5,Obbligazionario Breve Termine
+IBGS.MI,iShares Euro Govt Bond 1-3 anni,Obbligazionario Governativo Breve
+IBGX.MI,iShares Euro Govt Bond 3-5 anni,Obbligazionario Governativo Medio
+IBGM.MI,iShares Euro Govt Bond 7-10 anni,Obbligazionario Governativo Medio
+IBGL.MI,iShares Euro Govt Bond 15-30 anni,Obbligazionario Governativo Lungo
+IBCI.MI,iShares Euro Inflation Linked Govt Bond,Obbligazionario Inflazione
+ITPS.MI,iShares USD TIPS,Obbligazionario Inflazione USA
+IHYG.MI,iShares Euro High Yield Corporate Bond,Obbligazionario High Yield
+LQDE.MI,iShares USD Corporate Bond,Obbligazionario Corporate USA
+IBTM.MI,iShares USD Treasury Bond 7-10 anni,Obbligazionario USA
+TLT,iShares 20+ Year Treasury Bond,Obbligazionario USA Lungo
+IEMB.MI,iShares JP Morgan USD EM Bond,Obbligazionario Emergenti
+SGLD.MI,iShares Physical Gold,Materie Prime Oro
+4GLD.DE,Xetra-Gold,Materie Prime Oro
+XAD1.DE,Xtrackers Physical Gold EUR Hedged,Materie Prime Oro
+GDX,VanEck Gold Miners,Azionario Oro Minerarie
+GDXJ,VanEck Junior Gold Miners,Azionario Oro Minerarie
+PHAG.MI,WisdomTree Physical Silver,Materie Prime Argento
+CRB.MI,WisdomTree Commodity,Materie Prime
+IPRP.MI,iShares European Property Yield,Immobiliare
+SPY,SPDR S&P 500 ETF Trust,Azionario USA
+QQQ,Invesco QQQ Trust,Azionario USA Tech
+VTI,Vanguard Total Stock Market,Azionario USA
+GLD,SPDR Gold Shares,Materie Prime Oro
+AGG,iShares Core U.S. Aggregate Bond,Obbligazionario USA

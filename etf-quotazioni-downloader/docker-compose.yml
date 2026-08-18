@@ -1,0 +1,43 @@
+# Configurazione per Container Manager di Synology (o docker compose).
+# Su DSM: Container Manager > Progetto > Crea, scegli questa cartella,
+# e questo file viene rilevato automaticamente.
+
+services:
+  etf-downloader:
+    build: .
+    container_name: etf-quotazioni-downloader
+    restart: unless-stopped
+
+    environment:
+      # Fuso orario: determina a che ora parte l'aggiornamento.
+      TZ: Europe/Rome
+
+      # Orari degli aggiornamenti, separati da virgola (formato 24 ore).
+      # Predefinito: 3 volte al giorno in orario lavorativo. Puoi metterne
+      # quanti ne vuoi, anche uno solo (es. "19:30").
+      ORARI: "09:30,13:30,17:30"
+
+      # 1 = genera subito un report al primo avvio, senza aspettare l'orario.
+      ESEGUI_SUBITO: "1"
+
+      # Porta del server web interno per consultare il report dal browser.
+      # Metti 0 per disattivarlo del tutto.
+      PORTA_WEB: "8099"
+
+      # Utente e gruppo del NAS a cui assegnare i file generati.
+      # Come trovarli: SSH sul NAS e comando  id nome-utente
+      # 1026 e 100 sono i valori piu' comuni per il primo utente Synology.
+      PUID: "1026"
+      PGID: "100"
+
+    ports:
+      # Cambia solo il numero a SINISTRA se la porta 8099 e' gia' occupata.
+      - "8099:8099"
+
+    volumes:
+      # Le cartelle restano sul NAS: cosi' i dati sopravvivono
+      # all'aggiornamento o alla ricreazione del container.
+      - ./config:/app/config
+      - ./data:/app/data
+      - ./report:/app/report
+      - ./log:/app/log
