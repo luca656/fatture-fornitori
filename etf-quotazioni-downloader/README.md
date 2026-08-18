@@ -149,8 +149,9 @@ utente Synology e vanno bene nella maggior parte dei casi. Se i file generati
 risultassero poi non modificabili, ricava i valori giusti collegandoti in SSH
 al NAS ed eseguendo `id iltuonome`.
 
-Nello stesso file puoi cambiare l'orario dell'aggiornamento (`ORARIO`) e la
-porta del server web (`PORTA_WEB`).
+Nello stesso file puoi cambiare gli orari degli aggiornamenti (`ORARI`,
+separati da virgola — di default tre al giorno in orario lavorativo:
+`09:30,13:30,17:30`) e la porta del server web (`PORTA_WEB`).
 
 ### Passo 3 — crea il progetto in Container Manager
 
@@ -185,10 +186,26 @@ In Container Manager, apri il container e guarda la scheda **Log**: dovresti
 vedere righe come
 
 ```
-[2026-08-17 11:47:54] ETF Quotazioni Downloader - fuso orario Europe/Rome, aggiornamento giornaliero alle 19:30.
-[2026-08-17 11:48:03] Aggiornamento completato.
-[2026-08-17 11:48:03] Prossimo aggiornamento tra 7h 42m.
+[2026-08-18 09:21:32] ETF Quotazioni Downloader - fuso orario Europe/Rome, aggiornamenti ogni giorno alle 09:30,13:30,17:30.
+[2026-08-18 09:21:40] Aggiornamento completato.
+[2026-08-18 09:21:40] Prossimo aggiornamento tra 0h 8m.
 ```
+
+### Aggiornare il software a una nuova versione
+
+Quando sostituisci dei file del programma (`main.py`, `docker/entrypoint.sh`,
+`Dockerfile`...), non basta riavviare il container: quei file vengono copiati
+**dentro** l'immagine al momento della compilazione, e Container Manager tende
+a riusare l'immagine già compilata. La sequenza corretta è:
+
+1. carica i file nuovi in File Station, sovrascrivendo i vecchi
+2. **Container** → seleziona il container → **Azione** → **Interrompi**, poi **Elimina**
+3. **Immagine** → elimina `etf-quotazioni-downloader-etf-downloader:latest`
+4. **Progetto** → **Azione** → **Costruzione**: devono riapparire gli step
+   `1/14, 2/14...` — è il segno che sta ricostruendo davvero
+
+I file in `config`, `data`, `report` e `log` non vengono toccati: vivono sul
+NAS, fuori dall'immagine.
 
 ### Senza Docker
 

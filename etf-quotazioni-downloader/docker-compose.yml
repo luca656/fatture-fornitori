@@ -12,8 +12,10 @@ services:
       # Fuso orario: determina a che ora parte l'aggiornamento.
       TZ: Europe/Rome
 
-      # Orario dell'aggiornamento giornaliero (formato 24 ore).
-      ORARIO: "19:30"
+      # Orari degli aggiornamenti, separati da virgola (formato 24 ore).
+      # Predefinito: 3 volte al giorno in orario lavorativo. Puoi metterne
+      # quanti ne vuoi, anche uno solo (es. "19:30").
+      ORARI: "09:30,13:30,17:30"
 
       # 1 = genera subito un report al primo avvio, senza aspettare l'orario.
       ESEGUI_SUBITO: "1"
