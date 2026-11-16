@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Le mie ricette</title>
+<style>
+  :root{--bg:#fbf6ef;--card:#fff;--ink:#2b2118;--muted:#7a6a5b;--accent:#c4552d;--line:#eadfce}
+  @media (prefers-color-scheme:dark){:root{--bg:#1c1713;--card:#272019;--ink:#f1e7da;--muted:#a8998a;--accent:#e4784d;--line:#3a3128}}
+  *{box-sizing:border-box}
+  body{margin:0;font:16px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  header{padding:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;max-width:900px;margin:auto}
+  h1{margin:0;font-size:1.5rem;flex:1}
+  main{max-width:900px;margin:auto;padding:0 16px 80px}
+  button,input,select,textarea{font:inherit;color:inherit}
+  button{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:8px 14px;cursor:pointer}
+  button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+  button.danger{background:#b3261e}
+  input,select,textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+  textarea{min-height:120px;resize:vertical}
+  label{display:block;margin:14px 0 4px;font-weight:600}
+  .tabs{display:flex;gap:6px;overflow-x:auto;padding:4px 0 12px}
+  .tab{flex:none;background:var(--card);color:var(--ink);border:1px solid var(--line)}
+  .tab.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;cursor:pointer}
+  .card .ph{aspect-ratio:4/3;background:var(--line) center/cover;display:grid;place-items:center;font-size:2rem}
+  .card .t{padding:10px 12px}.card .t b{display:block}.card .t small{color:var(--muted)}
+  .empty{color:var(--muted);text-align:center;padding:40px 0}
+  .gallery{display:flex;gap:8px;overflow-x:auto;padding:4px 0}
+  .gallery img{height:200px;border-radius:12px;cursor:zoom-in}
+  .thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .thumbs div{position:relative}.thumbs img{height:80px;border-radius:8px;display:block}
+  .thumbs button{position:absolute;top:2px;right:2px;padding:0 7px;border-radius:50%}
+  pre{white-space:pre-wrap;font:inherit;margin:0}
+  ul.ing{padding-left:20px;margin:0}
+  .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+  .meta{color:var(--muted)}
+  #lb{position:fixed;inset:0;background:#000d;display:none;place-items:center;z-index:9}
+  #lb img{max-width:95vw;max-height:95vh}
+</style>
+</head>
+<body>
+<header>
+  <h1>🍝 Le mie ricette</h1>
+  <button id="add">+ Nuova ricetta</button>
+  <button class="ghost" id="exp" title="Scarica un backup">Esporta</button>
+  <button class="ghost" id="imp" title="Ripristina da backup">Importa</button>
+  <input type="file" id="impf" accept="application/json" hidden>
+</header>
+<main id="app"></main>
+<div id="lb"><img alt=""></div>
+
+<script>
+const CATS=["Antipasti","Primi","Secondi","Contorni","Dolci","Pane e pizza","Altro"];
+const ICON={"Antipasti":"🥗","Primi":"🍝","Secondi":"🍖","Contorni":"🥦","Dolci":"🍰","Pane e pizza":"🍕","Altro":"🍽️"};
+const $=s=>document.querySelector(s), app=$("#app");
+let recipes=[], cat="Tutte", q="";
+
+/* ---- storage: IndexedDB (regge bene le foto) ---- */
+const dbp=new Promise((res,rej)=>{const r=indexedDB.open("ricette",1);
+  r.onupgradeneeded=()=>r.result.createObjectStore("r",{keyPath:"id"});
+  r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
+const tx=async(m,f)=>{const db=await dbp;return new Promise((res,rej)=>{const t=db.transaction("r",m);const o=f(t.objectStore("r"));t.oncomplete=()=>res(o&&o.result);t.onerror=()=>rej(t.error)})};
+const loadAll=async()=>{recipes=(await tx("readonly",s=>s.getAll())).sort((a,b)=>b.updated-a.updated)};
+const save=r=>tx("readwrite",s=>s.put(r));
+const del=id=>tx("readwrite",s=>s.delete(id));
+
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+
+/* ridimensiona le foto per non riempire la memoria */
+const shrink=file=>new Promise(res=>{const i=new Image(),u=URL.createObjectURL(file);
+  i.onload=()=>{const k=Math.min(1,1200/Math.max(i.width,i.height));const c=document.createElement("canvas");
+    c.width=i.width*k;c.height=i.height*k;c.getContext("2d").drawImage(i,0,0,c.width,c.height);
+    URL.revokeObjectURL(u);res(c.toDataURL("image/jpeg",.82))};i.src=u});
+
+/* ---- lista ---- */
+function list(){
+  const n=c=>c==="Tutte"?recipes.length:recipes.filter(r=>r.cat===c).length;
+  const shown=recipes.filter(r=>(cat==="Tutte"||r.cat===cat)&&(!q||(r.name+" "+r.ing).toLowerCase().includes(q.toLowerCase())));
+  app.innerHTML=`<input id="q" placeholder="Cerca per nome o ingrediente…" value="${esc(q)}">
+  <div class="tabs">${["Tutte",...CATS].map(c=>`<button class="tab ${c===cat?"on":""}" data-c="${c}">${ICON[c]||""} ${c} (${n(c)})</button>`).join("")}</div>
+  ${shown.length?`<div class="grid">${shown.map(r=>`<div class="card" data-id="${r.id}">
+    <div class="ph" style="${r.photos[0]?`background-image:url(${r.photos[0]})`:""}">${r.photos[0]?"":ICON[r.cat]||"🍽️"}</div>
+    <div class="t"><b>${esc(r.name)}</b><small>${r.cat}${r.date?" · "+r.date:""}</small></div></div>`).join("")}</div>`
+   :`<div class="empty">Nessuna ricetta${cat!=="Tutte"?" in "+cat:""}. Premi “+ Nuova ricetta”.</div>`}`;
+  $("#q").oninput=e=>{q=e.target.value;const p=e.target.selectionStart;list();const i=$("#q");i.focus();i.setSelectionRange(p,p)};
+  app.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{cat=b.dataset.c;list()});
+  app.querySelectorAll(".card").forEach(c=>c.onclick=()=>view(c.dataset.id));
+}
+
+/* ---- dettaglio ---- */
+function view(id){
+  const r=recipes.find(x=>x.id===id);if(!r)return list();
+  app.innerHTML=`<button class="ghost" id="back">← Indietro</button>
+  <h2>${esc(r.name)}</h2><div class="meta">${ICON[r.cat]||""} ${r.cat}${r.date?" · fatta il "+r.date:""}</div>
+  ${r.photos.length?`<div class="gallery">${r.photos.map(p=>`<img src="${p}" alt="">`).join("")}</div>`:""}
+  <h3>Ingredienti</h3><ul class="ing">${r.ing.split("\n").filter(x=>x.trim()).map(x=>`<li>${esc(x)}</li>`).join("")}</ul>
+  <h3>Procedimento</h3><pre>${esc(r.steps)}</pre>
+  ${r.notes?`<h3>Note</h3><pre>${esc(r.notes)}</pre>`:""}
+  <div class="row"><button id="ed">Modifica</button><button class="danger" id="rm">Elimina</button></div>`;
+  $("#back").onclick=list;$("#ed").onclick=()=>form(r);
+  $("#rm").onclick=async()=>{if(confirm("Eliminare questa ricetta?")){await del(r.id);await loadAll();list()}};
+  app.querySelectorAll(".gallery img").forEach(i=>i.onclick=()=>{$("#lb img").src=i.src;$("#lb").style.display="grid"});
+}
+$("#lb").onclick=()=>$("#lb").style.display="none";
+
+/* ---- form ---- */
+function form(r){
+  const isNew=!r;r=r||{id:uid(),name:"",cat:cat==="Tutte"?"Primi":cat,ing:"",steps:"",notes:"",photos:[],date:new Date().toISOString().slice(0,10)};
+  const photos=[...r.photos];
+  app.innerHTML=`<button class="ghost" id="back">← Annulla</button><h2>${isNew?"Nuova ricetta":"Modifica ricetta"}</h2>
+  <label>Nome</label><input id="n" value="${esc(r.name)}">
+  <label>Portata</label><select id="c">${CATS.map(c=>`<option ${c===r.cat?"selected":""}>${c}</option>`).join("")}</select>
+  <label>Data in cui l'hai fatta</label><input id="d" type="date" value="${r.date||""}">
+  <label>Ingredienti (uno per riga)</label><textarea id="i" placeholder="200 g spaghetti&#10;2 uova&#10;100 g guanciale">${esc(r.ing)}</textarea>
+  <label>Procedimento</label><textarea id="s" style="min-height:180px">${esc(r.steps)}</textarea>
+  <label>Note (opzionale)</label><textarea id="o" style="min-height:70px">${esc(r.notes)}</textarea>
+  <label>Foto del risultato</label><input id="f" type="file" accept="image/*" multiple><div class="thumbs" id="t"></div>
+  <div class="row"><button id="ok">Salva</button></div>`;
+  const draw=()=>{$("#t").innerHTML=photos.map((p,k)=>`<div><img src="${p}"><button data-k="${k}">×</button></div>`).join("");
+    $("#t").querySelectorAll("button").forEach(b=>b.onclick=()=>{photos.splice(+b.dataset.k,1);draw()})};draw();
+  $("#f").onchange=async e=>{for(const f of e.target.files)photos.push(await shrink(f));e.target.value="";draw()};
+  $("#back").onclick=()=>isNew?list():view(r.id);
+  $("#ok").onclick=async()=>{const name=$("#n").value.trim();if(!name)return alert("Dai un nome alla ricetta");
+    await save({...r,name,cat:$("#c").value,date:$("#d").value,ing:$("#i").value,steps:$("#s").value,notes:$("#o").value,photos,updated:Date.now()});
+    await loadAll();view(r.id)};
+}
+
+/* ---- backup ---- */
+$("#add").onclick=()=>form();
+$("#exp").onclick=()=>{const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(recipes)],{type:"application/json"}));
+  a.download="ricette-"+new Date().toISOString().slice(0,10)+".json";a.click()};
+$("#imp").onclick=()=>$("#impf").click();
+$("#impf").onchange=async e=>{try{const arr=JSON.parse(await e.target.files[0].text());
+  for(const r of arr)await save(r);await loadAll();list();alert(arr.length+" ricette importate")}catch{alert("File non valido")}e.target.value=""};
+
+loadAll().then(list);
+</script>
+</body>
+</html>
