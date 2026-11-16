@@ -1,8 +1,27 @@
 // Server minimale (nessuna dipendenza) per tenere le ricette sul NAS.
 // Avvio:  node server.js        (porta 8080, cartella dati ./data)
-// Variabili: PORT, DATA_DIR
-const http = require("http"), fs = require("fs"), path = require("path");
+// Variabili: PORT, DATA_DIR, RICETTE_PASSWORD (obbligatoria), RICETTE_USER (default "luca"),
+//            TLS_KEY + TLS_CERT (percorsi file, per attivare HTTPS)
+const http = require("http"), https = require("https"), fs = require("fs"), path = require("path"), crypto = require("crypto");
 const PORT = +process.env.PORT || 8080;
+const USER = process.env.RICETTE_USER || "luca", PASS = process.env.RICETTE_PASSWORD || "";
+if (!PASS && process.env.ALLOW_NO_PASSWORD !== "1") {
+  console.error("Imposta una password:  RICETTE_PASSWORD='la-tua-password' node server.js\n(solo per uso in casa senza accesso da fuori: ALLOW_NO_PASSWORD=1)");
+  process.exit(1);
+}
+const same = (a, b) => { const x = crypto.createHash("sha256").update(a).digest(), y = crypto.createHash("sha256").update(b).digest(); return crypto.timingSafeEqual(x, y); };
+const fails = new Map(); // ip -> {n, until}: dopo 8 errori si blocca per 15 minuti
+function authorized(req, res) {
+  if (!PASS) return true;
+  const ip = req.socket.remoteAddress, f = fails.get(ip) || { n: 0, until: 0 };
+  if (f.until > Date.now()) { res.writeHead(429, { "content-type": "text/plain" }); res.end("Troppi tentativi, riprova più tardi"); return false; }
+  const m = /^Basic (.+)$/.exec(req.headers.authorization || "");
+  const [u = "", ...pw] = m ? Buffer.from(m[1], "base64").toString().split(":") : [];
+  if (m && same(u, USER) & same(pw.join(":"), PASS)) { fails.delete(ip); return true; }
+  if (m) { f.n++; if (f.n >= 8) { f.n = 0; f.until = Date.now() + 15 * 60e3; } fails.set(ip, f); }
+  res.writeHead(401, { "www-authenticate": 'Basic realm="Ricettario", charset="UTF-8"', "content-type": "text/plain" }); res.end("Accesso richiesto");
+  return false;
+}
 const DATA = path.resolve(process.env.DATA_DIR || path.join(__dirname, "data"));
 const PHOTOS = path.join(DATA, "photos"), BACKUPS = path.join(DATA, "backups");
 const FILE = path.join(DATA, "ricette.json");
@@ -32,7 +51,8 @@ const storePhotos = photos => (photos || []).map(p => {
 const send = (res, code, body, type = "application/json") => { res.writeHead(code, { "content-type": type }); res.end(body); };
 const body = req => new Promise(r => { let b = ""; req.on("data", c => b += c); req.on("end", () => r(b)); });
 
-http.createServer(async (req, res) => {
+const handler = async (req, res) => {
+  if (!authorized(req, res)) return;
   const url = decodeURIComponent(req.url.split("?")[0]);
   try {
     if (url === "/api/recipes" && req.method === "GET") {
@@ -53,4 +73,7 @@ http.createServer(async (req, res) => {
     if (url === "/" || url === "/index.html") return send(res, 200, fs.readFileSync(path.join(__dirname, "index.html")), "text/html; charset=utf-8");
     send(res, 404, "Non trovato", "text/plain");
   } catch (e) { send(res, 500, JSON.stringify({ error: e.message })); }
-}).listen(PORT, "0.0.0.0", () => console.log("Ricette su http://0.0.0.0:" + PORT + "  (dati in " + DATA + ")"));
+};
+const tls = process.env.TLS_KEY && process.env.TLS_CERT;
+(tls ? https.createServer({ key: fs.readFileSync(process.env.TLS_KEY), cert: fs.readFileSync(process.env.TLS_CERT) }, handler) : http.createServer(handler))
+  .listen(PORT, "0.0.0.0", () => console.log("Ricettario su " + (tls ? "https" : "http") + "://0.0.0.0:" + PORT + "  (dati in " + DATA + ")" + (PASS ? "" : "  ATTENZIONE: senza password")));
