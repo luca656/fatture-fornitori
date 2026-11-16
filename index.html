@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ricettario</title>
+<style>
+  :root{--bg:#070707;--panel:#101010;--ink:#f2ede5;--muted:#b3aa9d;--gold:#d9b86a;--line:#2e2e2e;--btn:#4a1a0c;--btn2:#6b2612;--ok:#a5e0bd}
+  *{box-sizing:border-box}
+  body{margin:0;font:17px/1.55 system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--ink)}
+  .serif,h1,h2,h3,.brand{font-family:Georgia,"Times New Roman",serif}
+  .bar{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;padding:14px 16px}
+  .brand{font-size:1.5rem;font-weight:700}
+  .pill{background:#2a1f0c;color:var(--ink);border-radius:12px;padding:10px 18px;font-weight:600;border:0;cursor:pointer}
+  .bar .sp{flex:1}
+  .bar a{color:var(--ink);cursor:pointer;opacity:.9}
+  main{max-width:900px;margin:auto;padding:28px 16px 90px}
+  .eyebrow{font:600 .8rem/1 ui-monospace,Menlo,monospace;letter-spacing:.22em;text-transform:uppercase;color:var(--gold);display:flex;align-items:center;gap:14px}
+  .eyebrow:before{content:"";width:46px;height:1px;background:var(--gold)}
+  h1{font-size:2.6rem;line-height:1.2;margin:18px 0 14px}
+  h2{font-size:2rem;line-height:1.2;margin:14px 0 6px}
+  h3{font-size:1.25rem;margin:26px 0 8px;color:var(--gold)}
+  .lead{color:var(--ink);opacity:.92;margin:0 0 18px}
+  .status{display:flex;align-items:center;gap:10px;color:var(--ink);margin-bottom:18px}
+  .dot{width:13px;height:13px;border-radius:50%;background:var(--ok);flex:none}.dot.off{background:#e0a35a}
+  button{font:inherit;cursor:pointer}
+  .btn{background:var(--btn);color:#fff;border:0;border-radius:10px;padding:12px 20px;font-weight:700}
+  .btn:hover{background:var(--btn2)}
+  .btn.ghost{background:transparent;border:1px solid #666;color:var(--ink)}
+  .btn.danger{background:#7a1d16}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}
+  input,select,textarea{font:inherit;color:var(--ink);width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+  textarea{min-height:120px;resize:vertical}
+  label{display:block;margin:16px 0 6px;font-weight:600}
+  .tabs{display:flex;gap:8px;overflow-x:auto;padding:14px 0}
+  .tab{flex:none;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:8px 16px}
+  .tab.on{background:#2a1f0c;border-color:var(--gold);color:var(--gold)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;cursor:pointer}
+  .card:hover{border-color:var(--gold)}
+  .card .ph{aspect-ratio:4/3;background:#1b1b1b center/cover;display:grid;place-items:center;font-size:2.4rem}
+  .card .t{padding:12px 14px}.card .t b{display:block;font-family:Georgia,serif;font-size:1.1rem}.card .t small{color:var(--muted)}
+  .empty{color:var(--muted);text-align:center;padding:50px 0}
+  .callout{border:1px solid var(--line);border-left:4px solid var(--gold);border-radius:14px;padding:16px 18px;margin:16px 0}
+  .gallery{display:flex;gap:10px;overflow-x:auto;padding:8px 0}
+  .gallery img{height:220px;border-radius:12px;cursor:zoom-in}
+  .thumbs{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+  .thumbs div{position:relative}.thumbs img{height:84px;border-radius:8px;display:block}
+  .thumbs button{position:absolute;top:2px;right:2px;padding:0 8px;border-radius:50%;border:0;background:#000b;color:#fff}
+  pre{white-space:pre-wrap;font:inherit;margin:0}
+  ul.ing{padding-left:22px;margin:0}
+  .meta{color:var(--muted)}
+  #lb{position:fixed;inset:0;background:#000e;display:none;place-items:center;z-index:9}
+  #lb img{max-width:95vw;max-height:95vh}
+</style>
+</head>
+<body>
+<div class="bar">
+  <span class="brand">Ricettario</span>
+  <button class="pill" id="home">● Elenco</button>
+  <span class="sp"></span>
+  <a id="add">＋ Nuova</a>
+</div>
+<main id="app"></main>
+<input type="file" id="impf" accept="application/json" hidden>
+<div id="lb"><img alt=""></div>
+
+<script>
+const CATS=["Antipasti","Primi","Secondi","Contorni","Dolci","Pane e pizza","Altro"];
+const ICON={"Antipasti":"🥗","Primi":"🍝","Secondi":"🍖","Contorni":"🥦","Dolci":"🍰","Pane e pizza":"🍕","Altro":"🍽️"};
+const $=s=>document.querySelector(s), app=$("#app");
+let recipes=[], cat="Tutte", q="", server=false, modified=null;
+
+/* ---- archivio: server sul NAS se c'è, altrimenti IndexedDB nel browser ---- */
+const dbp=new Promise((res,rej)=>{const r=indexedDB.open("ricette",1);
+  r.onupgradeneeded=()=>r.result.createObjectStore("r",{keyPath:"id"});
+  r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
+const tx=async(m,f)=>{const db=await dbp;return new Promise((res,rej)=>{const t=db.transaction("r",m);const o=f(t.objectStore("r"));t.oncomplete=()=>res(o&&o.result);t.onerror=()=>rej(t.error)})};
+async function loadAll(){
+  try{const r=await fetch("/api/recipes");if(!r.ok)throw 0;const j=await r.json();server=true;recipes=j.recipes;modified=j.modified}
+  catch{server=false;recipes=await tx("readonly",s=>s.getAll());modified=Math.max(0,...recipes.map(r=>r.updated||0))||null}
+  recipes.sort((a,b)=>(b.updated||0)-(a.updated||0));
+}
+async function save(r){
+  if(server){const x=await fetch("/api/recipes/"+r.id,{method:"PUT",body:JSON.stringify(r)});if(!x.ok)throw new Error("Salvataggio non riuscito")}
+  else await tx("readwrite",s=>s.put(r));
+}
+async function del(id){
+  if(server)await fetch("/api/recipes/"+id,{method:"DELETE"});
+  else await tx("readwrite",s=>s.delete(id));
+}
+
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const when=t=>t?new Date(t).toLocaleString("it-IT",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}).replace(",",","):"—";
+const shrink=file=>new Promise(res=>{const i=new Image(),u=URL.createObjectURL(file);
+  i.onload=()=>{const k=Math.min(1,1200/Math.max(i.width,i.height));const c=document.createElement("canvas");
+    c.width=i.width*k;c.height=i.height*k;c.getContext("2d").drawImage(i,0,0,c.width,c.height);
+    URL.revokeObjectURL(u);res(c.toDataURL("image/jpeg",.82))};i.src=u});
+
+/* ---- elenco ---- */
+function list(){
+  const n=c=>c==="Tutte"?recipes.length:recipes.filter(r=>r.cat===c).length;
+  const shown=recipes.filter(r=>(cat==="Tutte"||r.cat===cat)&&(!q||(r.name+" "+r.ing).toLowerCase().includes(q.toLowerCase())));
+  app.innerHTML=`<div class="eyebrow">Cucina · ricette fatte</div>
+  <h1>Il mio ricettario</h1>
+  <p class="lead">Tutte le ricette che faccio, divise per portata: ingredienti, procedimento e le foto di come sono venute.${server?" I dati sono salvati sul NAS, con una copia di sicurezza ogni giorno: li ritrovi da qualsiasi PC o telefono collegato alla rete.":""}</p>
+  <div class="status"><span class="dot ${server?"":"off"}"></span><span>${server?"Salvato sul NAS":"Salvato solo su questo browser"} · ultima modifica ${when(modified)}</span></div>
+  <div class="row"><button class="btn" id="n">Nuova ricetta</button><button class="btn ghost" id="exp">Esporta backup</button><button class="btn ghost" id="imp">Importa</button></div>
+  <input id="q" placeholder="Cerca per nome o ingrediente…" value="${esc(q)}">
+  <div class="tabs">${["Tutte",...CATS].map(c=>`<button class="tab ${c===cat?"on":""}" data-c="${c}">${ICON[c]||""} ${c} (${n(c)})</button>`).join("")}</div>
+  ${shown.length?`<div class="grid">${shown.map(r=>`<div class="card" data-id="${r.id}">
+    <div class="ph" style="${r.photos[0]?`background-image:url(${r.photos[0]})`:""}">${r.photos[0]?"":ICON[r.cat]||"🍽️"}</div>
+    <div class="t"><b>${esc(r.name)}</b><small>${r.cat}${r.date?" · "+r.date:""}</small></div></div>`).join("")}</div>`
+   :`<div class="empty">Nessuna ricetta${cat!=="Tutte"?" in "+cat:""}. Premi “Nuova ricetta”.</div>`}`;
+  $("#n").onclick=()=>form();
+  $("#exp").onclick=exportAll;$("#imp").onclick=()=>$("#impf").click();
+  $("#q").oninput=e=>{q=e.target.value;const p=e.target.selectionStart;list();const i=$("#q");i.focus();i.setSelectionRange(p,p)};
+  app.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{cat=b.dataset.c;list()});
+  app.querySelectorAll(".card").forEach(c=>c.onclick=()=>view(c.dataset.id));
+}
+
+/* ---- dettaglio ---- */
+function view(id){
+  const r=recipes.find(x=>x.id===id);if(!r)return list();
+  app.innerHTML=`<div class="eyebrow">${ICON[r.cat]||""} ${esc(r.cat)}${r.date?" · fatta il "+r.date:""}</div>
+  <h2>${esc(r.name)}</h2>
+  ${r.photos.length?`<div class="gallery">${r.photos.map(p=>`<img src="${p}" alt="">`).join("")}</div>`:""}
+  <h3>Ingredienti</h3><ul class="ing">${r.ing.split("\n").filter(x=>x.trim()).map(x=>`<li>${esc(x)}</li>`).join("")}</ul>
+  <h3>Procedimento</h3><pre>${esc(r.steps)}</pre>
+  ${r.notes?`<div class="callout"><b>Note:</b> ${esc(r.notes)}</div>`:""}
+  <div class="row"><button class="btn" id="ed">Modifica</button><button class="btn ghost" id="back">Indietro</button><button class="btn danger" id="rm">Elimina</button></div>`;
+  $("#back").onclick=list;$("#ed").onclick=()=>form(r);
+  $("#rm").onclick=async()=>{if(confirm("Eliminare questa ricetta?")){await del(r.id);await loadAll();list()}};
+  app.querySelectorAll(".gallery img").forEach(i=>i.onclick=()=>{$("#lb img").src=i.src;$("#lb").style.display="grid"});
+}
+$("#lb").onclick=()=>$("#lb").style.display="none";
+
+/* ---- form ---- */
+function form(r){
+  const isNew=!r;r=r||{id:uid(),name:"",cat:cat==="Tutte"?"Primi":cat,ing:"",steps:"",notes:"",photos:[],date:new Date().toISOString().slice(0,10)};
+  const photos=[...r.photos];
+  app.innerHTML=`<div class="eyebrow">${isNew?"Nuova ricetta":"Modifica"}</div><h2>${isNew?"Aggiungi una ricetta":esc(r.name)}</h2>
+  <label>Nome</label><input id="n" value="${esc(r.name)}">
+  <label>Portata</label><select id="c">${CATS.map(c=>`<option ${c===r.cat?"selected":""}>${c}</option>`).join("")}</select>
+  <label>Data in cui l'hai fatta</label><input id="d" type="date" value="${r.date||""}">
+  <label>Ingredienti (uno per riga)</label><textarea id="i" placeholder="200 g spaghetti&#10;2 uova&#10;100 g guanciale">${esc(r.ing)}</textarea>
+  <label>Procedimento</label><textarea id="s" style="min-height:180px">${esc(r.steps)}</textarea>
+  <label>Note (opzionale)</label><textarea id="o" style="min-height:70px">${esc(r.notes)}</textarea>
+  <label>Foto del risultato</label><input id="f" type="file" accept="image/*" multiple><div class="thumbs" id="t"></div>
+  <div class="row"><button class="btn" id="ok">Salva</button><button class="btn ghost" id="back">Annulla</button></div>`;
+  const draw=()=>{$("#t").innerHTML=photos.map((p,k)=>`<div><img src="${p}"><button data-k="${k}">×</button></div>`).join("");
+    $("#t").querySelectorAll("button").forEach(b=>b.onclick=()=>{photos.splice(+b.dataset.k,1);draw()})};draw();
+  $("#f").onchange=async e=>{for(const f of e.target.files)photos.push(await shrink(f));e.target.value="";draw()};
+  $("#back").onclick=()=>isNew?list():view(r.id);
+  $("#ok").onclick=async()=>{const name=$("#n").value.trim();if(!name)return alert("Dai un nome alla ricetta");
+    try{await save({...r,name,cat:$("#c").value,date:$("#d").value,ing:$("#i").value,steps:$("#s").value,notes:$("#o").value,photos,updated:Date.now()})}
+    catch(e){return alert(e.message)}
+    await loadAll();view(r.id)};
+}
+
+/* ---- backup manuale ---- */
+async function exportAll(){
+  const toData=async p=>p.startsWith("data:")?p:await new Promise(res=>fetch(p).then(r=>r.blob()).then(b=>{const f=new FileReader();f.onload=()=>res(f.result);f.readAsDataURL(b)}));
+  const out=[];for(const r of recipes)out.push({...r,photos:await Promise.all(r.photos.map(toData))});
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(out)],{type:"application/json"}));
+  a.download="ricette-"+new Date().toISOString().slice(0,10)+".json";a.click();
+}
+$("#impf").onchange=async e=>{try{const arr=JSON.parse(await e.target.files[0].text());
+  for(const r of arr)await save(r);await loadAll();list();alert(arr.length+" ricette importate")}catch{alert("File non valido")}e.target.value=""};
+
+$("#home").onclick=list;$("#add").onclick=()=>form();
+loadAll().then(list);
+</script>
+</body>
+</html>

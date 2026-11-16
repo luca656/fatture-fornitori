@@ -1,0 +1,14 @@
+# Copia in /etc/systemd/system/, modifica percorso e password, poi:
+#   systemctl daemon-reload && systemctl enable --now ricettario
+[Unit]
+Description=Ricettario
+After=network-online.target
+
+[Service]
+WorkingDirectory=/volume1/ricettario
+Environment=RICETTE_PASSWORD=CAMBIA-QUESTA-PASSWORD
+ExecStart=/usr/bin/node server.js
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
