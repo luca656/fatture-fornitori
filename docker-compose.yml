@@ -1,0 +1,12 @@
+# Avvio:  RICETTE_PASSWORD='scegli-una-password-lunga' docker compose up -d --build
+services:
+  ricettario:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      RICETTE_PASSWORD: ${RICETTE_PASSWORD:?Imposta RICETTE_PASSWORD}
+      RICETTE_USER: ${RICETTE_USER:-luca}
+    volumes:
+      - ./data:/data

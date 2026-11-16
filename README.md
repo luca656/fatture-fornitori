@@ -20,6 +20,12 @@ Utente: `luca` (cambiabile con `RICETTE_USER`). Poi apri `http://IP-DEL-NAS:8080
 - Dopo 8 password sbagliate l'indirizzo viene bloccato per 15 minuti
 - Variabili opzionali: `PORT` (default 8080), `DATA_DIR` (default `./data`)
 
+### Avvio automatico
+
+- **Docker** (Synology, QNAP, ecc.): `RICETTE_PASSWORD='la-tua-password' docker compose up -d --build`
+  riparte da solo dopo ogni riavvio; i dati restano in `./data`.
+- **Linux senza Docker**: usa `deploy/ricettario.service` (istruzioni nel file).
+
 ## Accesso da fuori casa
 
 1. **Indirizzo IP pubblico**: il router deve avere un IP pubblico. Se l'IP "WAN" del router è diverso da quello
